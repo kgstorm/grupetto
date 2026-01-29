@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.ui.zIndex
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -51,9 +54,12 @@ fun OverlayMinimizedContent(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     onMinimizeToggle: () -> Unit,
+    onSendResults: () -> Unit = {},
+    onResetNoSend: () -> Unit = {},
     heartAvailable: Boolean = false,
     onLayout: (IntSize) -> Unit
 ) {
+    val showConfirm = remember { mutableStateOf(false) }
     val backgroundShape = if (isMinimized) {
         RoundedCornerShape(8.dp)
     } else {
@@ -120,9 +126,42 @@ fun OverlayMinimizedContent(
                     .width(80.dp)
                     .alpha(timerAlpha),
                 timerLabel = timerLabel,
-                iconDrawable = R.drawable.ic_timer
+                iconDrawable = R.drawable.ic_timer,
+                onClick = { showConfirm.value = true }
             )
         }
+
+    if (showConfirm.value) {
+        // In-overlay confirmation panel (avoid platform Dialogs inside a service/window overlay)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(2f)
+                .padding(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .background(Color(30, 30, 30), shape = RoundedCornerShape(8.dp))
+                    .padding(8.dp)
+            ) {
+                Text("Send results to HA?", color = Color.White)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = {
+                        showConfirm.value = false
+                        // Don't send but reset
+                        onResetNoSend()
+                    }) { Text("Don't Send") }
+                    TextButton(onClick = {
+                        showConfirm.value = false
+                        onSendResults()
+                    }) { Text("Send") }
+                    TextButton(onClick = { showConfirm.value = false }) { Text("Cancel") }
+                }
+            }
+        }
+    }
 
         // Minimize/Maximize button
         Spacer(modifier = Modifier.width(8.dp))
@@ -195,10 +234,12 @@ private fun OverlayTimerField(
     modifier: Modifier,
     timerLabel: String,
     iconDrawable: Int,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
-            .wrapContentHeight(),
+            .wrapContentHeight()
+            .clickable(enabled = onClick != null) { onClick?.invoke() },
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Image(

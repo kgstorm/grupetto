@@ -8,6 +8,13 @@ def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
+// Load local.properties (not checked into VCS) for sensitive values like HA_TOKEN
+def localPropertiesFile = rootProject.file("local.properties")
+def localProperties = new Properties()
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+def haToken = localProperties.getProperty("HA_TOKEN", "")
 
 android {
     namespace 'com.spop.poverlay'
@@ -24,6 +31,8 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+        // Add HA token from local.properties into BuildConfig for safe, non-committed configuration
+        buildConfigField "String", "HA_TOKEN", "\"${haToken}\""
     }
 
     signingConfigs {

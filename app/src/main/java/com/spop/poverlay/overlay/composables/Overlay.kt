@@ -14,6 +14,10 @@ import androidx.compose.material.Button
 import androidx.compose.material.Snackbar
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.spop.poverlay.network.NetworkClient
+import com.spop.poverlay.BuildConfig
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +78,8 @@ fun Overlay(
     val heartAvailable by sensorViewModel.heartAvailable.collectAsStateWithLifecycle(initialValue = false)
     val timerLabel by timerViewModel.timerLabel.collectAsState(initial = "")
     val isTimerPaused by timerViewModel.timerPaused.collectAsState(initial = false)
+    val elapsedSeconds by timerViewModel.elapsedSeconds.collectAsState(initial = 0L)
+    val sendScope = rememberCoroutineScope()
     val errorMessage by sensorViewModel.errorMessage.collectAsState(initial = null)
 
     // Max values
@@ -171,6 +177,26 @@ fun Overlay(
             onTap = { timerViewModel.onTimerTap() },
             onLongPress = { timerViewModel.onTimerLongPress() },
             onMinimizeToggle = { sensorViewModel.onOverlayPressed() },
+            onSendResults = {
+                // Send payload to Home Assistant, then reset timer on success
+                sendScope.launch {
+                        val url = "http://192.168.40.90:8123/api/services/calorie_tracker/log_exercise"
+                        val durationMinutes = (elapsedSeconds / 60).toString()
+                        val json = """{"spoken_name":"Kevin","duration":"${durationMinutes}","exercise_type":"Cycling","calories_burned":"${calories}"}"""
+                    val token = BuildConfig.HA_TOKEN ?: ""
+                    try {
+                        val ok = NetworkClient.postExerciseResult(url, token, json)
+                        if (ok) {
+                            timerViewModel.onTimerLongPress()
+                        } else {
+                            Timber.w("Failed to POST exercise result")
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "Error posting exercise result")
+                    }
+                }
+            },
+            onResetNoSend = { timerViewModel.onTimerLongPress() },
             onLayout = onTimerLayout
         )
     }
